@@ -25,6 +25,11 @@ while [[ $# -gt 0 ]]; do
       exit 1
     fi
     ;;
+  --contracts | -c)
+    shift # Remove --contracts from processing
+    search_directory="$1"
+    shift # Remove the value from processing
+    ;;
   *)
     # Store positional arguments
     POSITIONAL_ARGS+=("$1")
@@ -90,9 +95,6 @@ find_sol_files() {
   # Assign the array to the variable name specified by the second argument
   eval "$array_name"='("${filesWithPath[@]}")'
 }
-
-# Specify the directory where you want to search for .sol files
-search_directory="contracts"
 
 # Declare empty arrays to store the file names
 filesWithPath_old=()
