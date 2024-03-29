@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { execSync } = require("child_process");
 
 // ========== INPUTS ==========
 
@@ -136,12 +137,24 @@ try {
   if (err.code !== "EEXIST") throw err;
 }
 
+// Write the reports to temporary files
 const reportOldPath = path.join(directoryPath, contractPath.name + "-OLD");
 const reportNewPath = path.join(directoryPath, contractPath.name + "-NEW");
-
-// Write files
 fs.writeFileSync(reportOldPath, reportOld);
 fs.writeFileSync(reportNewPath, reportNew);
+
+try {
+  execSync(
+    `diff -u ${reportOldPath.replaceAll("/", "//")} ${reportNewPath.replaceAll("/", "//")} > ${path
+      .join(directoryPath, contractPath.name + ".diff")
+      .replaceAll("/", "//")}`,
+  );
+} catch (err) {
+  console.warn(`diff -u ${reportOldPath} ${reportNewPath} failed with error: ${err.message}`);
+}
+
+execSync(`rm ${reportOldPath.replaceAll("/", "//")}`);
+execSync(`rm ${reportNewPath.replaceAll("/", "//")}`);
 
 // ========== HELPERS ==========
 
