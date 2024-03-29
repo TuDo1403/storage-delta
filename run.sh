@@ -151,12 +151,10 @@ for line in "${filesWithPath_old[@]}"; do
       cd "$current_dir"
       output_new=$(forge inspect $formated_name storage 2>/dev/null)
 
-      if [ -z "$output_old" ] || [ -z "$output_new" ]; then
-        continue
+      if [ -n "$output_old" ] && [ -n "$output_new" ]; then
+        echo "Comparing storage layout for $line"
+        node ./lib/storage-delta/_reporter.js "$output_old" "$output_new" ${line} $OMIT_NEW
       fi
-
-      echo "Comparing storage layout for $line"
-      node ./lib/storage-delta/_reporter.js "$output_old" "$output_new" ${line} $OMIT_NEW
     ) &
 
     # Limit the number of concurrent background processes
