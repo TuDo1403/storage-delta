@@ -280,6 +280,17 @@ function alignLayouts(layout1, layout2) {
 // IN: Storage item, storage item
 // OUT: True or false
 function isSame(item1, item2) {
+  // Remove number on type.value
+  const itemType1 = { ...item1.type };
+  const itemType2 = { ...item2.type };
+
+  if (itemType1.value && typeof itemType1.value === 'string') {
+    itemType1.value = itemType1.value.replace(/\)[^)]*$/, ')');
+  }
+  if (itemType2.value && typeof itemType2.value === 'string') {
+    itemType2.value = itemType2.value.replace(/\)[^)]*$/, ')');
+  }
+
   // Compare items by label and type
   if (item1.label === item2.label && JSON.stringify(item1.type) === JSON.stringify(item2.type)) {
     return true; // Items are equal
