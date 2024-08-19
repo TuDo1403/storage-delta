@@ -292,7 +292,7 @@ function isSame(item1, item2) {
   }
 
   // Compare items by label and type
-  if (item1.label === item2.label && JSON.stringify(item1.type) === JSON.stringify(item2.type)) {
+  if (item1.label === item2.label && JSON.stringify(itemType1.type) === JSON.stringify(itemType2.type)) {
     return true; // Items are equal
   } else {
     return false; // Items are not equal
