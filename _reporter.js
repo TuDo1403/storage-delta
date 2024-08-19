@@ -281,18 +281,15 @@ function alignLayouts(layout1, layout2) {
 // OUT: True or false
 function isSame(item1, item2) {
   // Remove number on type.value
-  const itemType1 = { ...item1.type };
-  const itemType2 = { ...item2.type };
-
-  if (itemType1.value && typeof itemType1.value === 'string') {
-    itemType1.value = itemType1.value.replace(/\)[^)]*$/, ')');
+  if (item1.type.value && typeof item1.type.value === 'string') {
+    item1.type.value = item1.type.value.replace(/\)(\d+)(_storage)?/g, ')');
   }
-  if (itemType2.value && typeof itemType2.value === 'string') {
-    itemType2.value = itemType2.value.replace(/\)[^)]*$/, ')');
+  if (item2.type.value && typeof item2.type.value === 'string') {
+    item2.type.value = item2.type.value.replace(/\)(\d+)(_storage)?/g, ')');
   }
 
   // Compare items by label and type
-  if (item1.label === item2.label && JSON.stringify(itemType1.type) === JSON.stringify(itemType2.type)) {
+  if (item1.label === item2.label && JSON.stringify(item1.type) === JSON.stringify(item2.type)) {
     return true; // Items are equal
   } else {
     return false; // Items are not equal
