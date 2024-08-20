@@ -281,8 +281,11 @@ function alignLayouts(layout1, layout2) {
 // OUT: True or false
 function isSame(item1, item2) {
   // Compare items by label and type.label and type.numberOfBytes and type.encoding
-  if (item1.label === item2.label && JSON.stringify(item1.type.encoding) === JSON.stringify(item2.type.encoding)
-    && JSON.stringify(item1.type.label) === JSON.stringify(item2.type.label) && JSON.stringify(item1.type.numberOfBytes) === JSON.stringify(item2.type.numberOfBytes)) {
+  let isEncodingSame = JSON.stringify(item1.type.encoding) === JSON.stringify(item2.type.encoding);
+  let isLabelSame = item1.label === item2.label && item1.type.label === item2.type.label;
+  let isNumberOfBytesSame = JSON.stringify(item1.type.numberOfBytes) === JSON.stringify(item2.type.numberOfBytes);
+
+  if (isEncodingSame && isLabelSame && isNumberOfBytesSame) {
     return true; // Items are equal
   } else {
     return false; // Items are not equal
