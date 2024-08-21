@@ -78,7 +78,7 @@ if [ "$exists" -eq 0 ]; then
   fi 
 
   # Check if update-deps.sh exists
-  if [ -f "soldeer.lock" ]; then
+  if [ -f "update-deps.sh" ]; then
     chmod +x ./update-deps.sh
     ./update-deps.sh
   fi 
