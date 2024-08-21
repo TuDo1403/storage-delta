@@ -4,7 +4,7 @@
 
 # Check if the commit hash argument is provided
 if [ -z "$1" ]; then
-  echo "Usage: bash lib/storage-delta/run.sh <hash> [config]"
+  echo "Usage: bash dependencies/@storage-delta-0.3.1/run.sh <hash> [config]"
   exit 1
 fi
 
@@ -72,6 +72,17 @@ if [ "$exists" -eq 0 ]; then
   # Reset to a certain commit
   git reset --hard "$1"
 
+  # Check if soldeer.lock exists
+  if [ -f "soldeer.lock" ]; then
+    forge soldeer install
+  fi 
+
+  # Check if update-deps.sh exists
+  if [ -f "update-deps.sh" ]; then
+    chmod +x ./update-deps.sh
+    ./update-deps.sh
+  fi 
+  
   forge install
 
   cd "$current_dir"
@@ -153,7 +164,7 @@ for line in "${filesWithPath_old[@]}"; do
 
       if [ -n "$output_old" ] && [ -n "$output_new" ]; then
         echo "Comparing storage layout for $line"
-        node ./lib/storage-delta/_reporter.js "$output_old" "$output_new" ${line} $OMIT_NEW
+        node ./dependencies/@storage-delta-0.3.1/_reporter.js "$output_old" "$output_new" ${line} $OMIT_NEW
       fi
     ) &
 
