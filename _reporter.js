@@ -280,16 +280,12 @@ function alignLayouts(layout1, layout2) {
 // IN: Storage item, storage item
 // OUT: True or false
 function isSame(item1, item2) {
-  // Remove number on type.value
-  if (item1.type.value && typeof item1.type.value === 'string') {
-    item1.type.value = item1.type.value.replace(/\)(\d+)(_storage)?/g, ')');
-  }
-  if (item2.type.value && typeof item2.type.value === 'string') {
-    item2.type.value = item2.type.value.replace(/\)(\d+)(_storage)?/g, ')');
-  }
+  // Compare items by label and type.label and type.numberOfBytes and type.encoding
+  let isSameEncoding = JSON.stringify(item1.type.encoding) === JSON.stringify(item2.type.encoding);
+  let isSameLabel = item1.label === item2.label && item1.type.label === item2.type.label;
+  let isSameNumberOfBytes = JSON.stringify(item1.type.numberOfBytes) === JSON.stringify(item2.type.numberOfBytes);
 
-  // Compare items by label and type
-  if (item1.label === item2.label && JSON.stringify(item1.type) === JSON.stringify(item2.type)) {
+  if (isSameEncoding && isSameLabel && isSameNumberOfBytes) {
     return true; // Items are equal
   } else {
     return false; // Items are not equal
