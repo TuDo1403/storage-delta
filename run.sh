@@ -72,6 +72,9 @@ if [ "$exists" -eq 0 ]; then
   # Reset to a certain commit
   git reset --hard "$1"
 
+  forge soldeer install
+  chmod +x ./update-deps.sh
+  ./update-deps.sh
   forge install
 
   cd "$current_dir"
