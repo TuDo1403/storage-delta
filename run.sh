@@ -166,7 +166,7 @@ echo "Deleted files: ${#differences[@]}"
 # ========================================================================
 
 # Limit the number of child processes
-NUM_SUB_PROCESSES_EACH_CORE=6
+NUM_SUB_PROCESSES_EACH_CORE=2
 NUMBER_OF_CORES=1
 if [ "$(uname)" == "Darwin" ]; then
   NUMBER_OF_CORES=$(sysctl -n hw.logicalcpu)
