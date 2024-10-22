@@ -189,7 +189,7 @@ for line in "${filesWithPath_old[@]}"; do
 
       if [ -n "$output_old" ] && [ -n "$output_new" ]; then
         echo "Comparing storage layout for $line"
-        node ./dependencies/storage-delta-0.3.1/_reporter.js "$output_old" "$output_new" ${line} $OMIT_NEW
+        node ./dependencies/storage-delta-0.3.2/_reporter.js "$output_old" "$output_new" ${line} $OMIT_NEW
       else
         echo "Skipping $line due to missing storage layout, output_old length ${#output_old}, output_new length ${#output_new}"
       fi
