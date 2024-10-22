@@ -79,9 +79,7 @@ if [ "$exists" -eq 0 ]; then
 
   # Check if soldeer.lock exists
   if [ -f "soldeer.lock" ]; then
-    forge soldeer update
-    # Remove pending changes in "remappings.txt"
-    git checkout -- "remappings.txt"
+    forge soldeer install
   fi
 
   # Check if update-deps.sh exists
@@ -168,7 +166,12 @@ echo "Deleted files: ${#differences[@]}"
 
 # Limit the number of child processes
 NUM_SUB_PROCESSES_EACH_CORE=6
-NUMBER_OF_CORES=$(sysctl -n hw.logicalcpu)
+NUMBER_OF_CORES=1
+if [ "$(uname)" == "Darwin" ]; then
+  NUMBER_OF_CORES=$(sysctl -n hw.logicalcpu)
+elif [ "$(uname)" == "Linux" ]; then
+  NUMBER_OF_CORES=$(nproc)
+fi
 MAX_CHILD_PROCESSES=$(echo "$NUMBER_OF_CORES * $NUM_SUB_PROCESSES_EACH_CORE" | bc)
 child_processes=0
 
