@@ -25,10 +25,15 @@ while [[ $# -gt 0 ]]; do
       exit 1
     fi
     ;;
-  --contracts | -c)
-    shift # Remove --contracts from processing
-    search_directory="$1"
-    shift # Remove the value from processing
+  --dst-root | -d)
+    shift
+    dst_root="$1"
+    shift
+    ;;
+  --src-root | -s)
+    shift
+    src_root="$1"
+    shift
     ;;
   *)
     # Store positional arguments
@@ -75,14 +80,14 @@ if [ "$exists" -eq 0 ]; then
   # Check if soldeer.lock exists
   if [ -f "soldeer.lock" ]; then
     forge soldeer install
-  fi 
+  fi
 
   # Check if update-deps.sh exists
   if [ -f "update-deps.sh" ]; then
     chmod +x ./update-deps.sh
     ./update-deps.sh
-  fi 
-  
+  fi
+
   forge install
 
   cd "$current_dir"
@@ -115,63 +120,84 @@ current_dir=$(pwd)
 
 # Call the function for the old version directory
 cd $old_version
-find_sol_files "$search_directory" "filesWithPath_old"
+find_sol_files "$dst_root" "filesWithPath_old"
 
 # Call the function for the new version directory
 cd "$current_dir"
-find_sol_files "$search_directory" "filesWithPath_new"
+find_sol_files "$src_root" "filesWithPath_new"
 
 # ========================================================================
 
 # REPORT DELETED ONES
 
-if [ -d "storage_delta" ]; then
-  rm -rf "storage_delta"
-fi
-
 differences=()
+
+# Extract basenames of the new files into a regular array
+newFilesBase=()
+for itemB in "${filesWithPath_new[@]}"; do
+  newFilesBase+=("$(basename "$itemB")")
+done
+
+# Check old files against the new files' basenames
 for item in "${filesWithPath_old[@]}"; do
+  itemBase=$(basename "$item")
   skip=
-  for itemB in "${filesWithPath_new[@]}"; do
-    [[ $item == $itemB ]] && {
+
+  for base in "${newFilesBase[@]}"; do
+    if [[ "$itemBase" == "$base" ]]; then
       skip=1
+      echo "Found $itemBase in new version, skipping!"
       break
-    }
+    fi
   done
+
   [[ -n $skip ]] || differences+=("$item")
 done
 
+# If there are differences, write them to .removed file
 if [ ${#differences[@]} -gt 0 ]; then
   mkdir -p "storage_delta"
   printf "%s\n" "${differences[@]}" >"storage_delta/.removed"
 fi
 
+echo "Deleted files: ${#differences[@]}"
+
 # ========================================================================
 
-# COMPARE STORAGE LAYOUTS
-MAX_CONCURRENT_PROCESSES=3
+# Limit the number of child processes
+NUM_SUB_PROCESSES_EACH_CORE=6
+NUMBER_OF_CORES=$(sysctl -n hw.logicalcpu)
+MAX_CHILD_PROCESSES=$(echo "$NUMBER_OF_CORES * $NUM_SUB_PROCESSES_EACH_CORE" | bc)
+child_processes=0
+
 # Loop through each item in the array
 for line in "${filesWithPath_old[@]}"; do
   # Check if the line is not empty
   if [ -n "$line" ] && [[ ! " ${differences[@]} " =~ " ${line} " ]]; then
     (
       # Run the 'forge inspect' command with the current item from the array
-      formated_name=${line}:$(basename "${line%.*}")
+      formatted_name=$(basename "${line%.*}")
       cd "$old_version"
-      output_old=$(forge inspect $formated_name storage 2>/dev/null)
+      output_old=$(forge inspect $formatted_name storage 2>/dev/null)
       cd "$current_dir"
-      output_new=$(forge inspect $formated_name storage 2>/dev/null)
+      output_new=$(forge inspect $formatted_name storage 2>/dev/null)
 
       if [ -n "$output_old" ] && [ -n "$output_new" ]; then
         echo "Comparing storage layout for $line"
-        node ./dependencies/@storage-delta-0.3.1/_reporter.js "$output_old" "$output_new" ${line} $OMIT_NEW
+        node ./dependencies/storage-delta-0.3.1/_reporter.js "$output_old" "$output_new" ${line} $OMIT_NEW
+      else
+        echo "Skipping $line due to missing storage layout, output_old length ${#output_old}, output_new length ${#output_new}"
       fi
     ) &
 
-    # Limit the number of concurrent background processes
-    if (($(jobs -r -p | wc -l) >= MAX_CONCURRENT_PROCESSES)); then
-      echo "Waiting for background processes to finish... (PID: $!)"
-      wait $!
+    child_processes=$(($child_processes + 1))
+
+    # If the number of child processes is greater than the maximum number of child processes
+    if [ $child_processes -ge $MAX_CHILD_PROCESSES ]; then
+      # Wait for all child processes to finish
+      wait
+      # Reset child_processes
+      child_processes=0
     fi
   fi
 done
