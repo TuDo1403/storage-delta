@@ -79,7 +79,9 @@ if [ "$exists" -eq 0 ]; then
 
   # Check if soldeer.lock exists
   if [ -f "soldeer.lock" ]; then
-    forge soldeer install
+    forge soldeer update
+    # Remove pending changes in "remappings.txt"
+    git checkout -- "remappings.txt"
   fi
 
   # Check if update-deps.sh exists
