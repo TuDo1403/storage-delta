@@ -88,6 +88,8 @@ if [ "$exists" -eq 0 ]; then
     ./update-deps.sh
   fi
 
+  git checkout -- "./remappings.txt"
+
   forge install
   forge build
 
