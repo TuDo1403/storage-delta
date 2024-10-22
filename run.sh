@@ -89,6 +89,7 @@ if [ "$exists" -eq 0 ]; then
   fi
 
   forge install
+  forge build
 
   cd "$current_dir"
 fi
