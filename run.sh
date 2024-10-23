@@ -1,15 +1,12 @@
 #!/bin/bash
 
-# HANDLE ERRORS
-
 # Check if the commit hash argument is provided
 if [ -z "$1" ]; then
-  echo "Usage: bash dependencies/@storage-delta-0.3.1/run.sh <hash> [config]"
+  echo "Usage: bash dependencies/storage-delta-0.3.2/run.sh --dst-commit <commit_to_compare_against> --src-commit <commit_to_compare> --github-root <github_root> [--omit new]"
   exit 1
 fi
 
 # Process positional arguments
-POSITIONAL_ARGS=()
 OMIT_NEW=0
 
 # Parsing the command-line arguments
@@ -18,33 +15,34 @@ while [[ $# -gt 0 ]]; do
   --omit)
     shift # Remove --omit from processing
     if [[ $1 == "new" ]]; then
-      OMIT_NEW=1
+      OMIT_NEW=1nvm
       shift # Remove the value from processing
     else
       echo "Usage: --omit new"
       exit 1
     fi
     ;;
-  --dst-root | -d)
+  --dst-commit)
     shift
-    dst_root="$1"
-    shift
-    ;;
-  --src-root | -s)
-    shift
-    src_root="$1"
+    dst_commit="$1"
     shift
     ;;
-  *)
-    # Store positional arguments
-    POSITIONAL_ARGS+=("$1")
+  --src-commit)
+    shift
+    src_commit="$1"
     shift
     ;;
+  --github-root)
+    shift
+    github_root="$1"
+    shift
+    ;;
+  *) ;;
   esac
 done
 
-# Restore positional arguments
-set -- "${POSITIONAL_ARGS[@]}"
+dst_root="src"
+src_root=$(yq eval '.profile.default.src' ./foundry.toml)
 
 # ========================================================================
 
@@ -59,8 +57,9 @@ if [ -d "$old_version" ]; then
   # Check if the current commit matches the target commit hash
   prev_dir=$(pwd)
   cd "$old_version"
-  if [ "$(git rev-parse --short HEAD)" = "${1:0:7}" ]; then
+  if [ "$(git rev-parse --short HEAD)" = "${dst_commit:0:7}" ]; then
     exists=1
+    dst_root=$(yq eval '.profile.default.src' ./foundry.toml)
   fi
   cd "$prev_dir"
   if [ "$exists" -eq 0 ]; then
@@ -74,8 +73,10 @@ if [ "$exists" -eq 0 ]; then
   git clone "file://$current_dir" "$old_version"
   cd "$old_version"
 
+  dst_root=$(yq eval '.profile.default.src' ./foundry.toml)
+
   # Reset to a certain commit
-  git reset --hard "$1"
+  git reset --hard $dst_commit
 
   # Check if soldeer.lock exists
   if [ -f "soldeer.lock" ]; then
@@ -84,7 +85,6 @@ if [ "$exists" -eq 0 ]; then
 
   # Check if update-deps.sh exists
   if [ -f "update-deps.sh" ]; then
-    chmod +x ./update-deps.sh
     ./update-deps.sh
   fi
 
@@ -129,33 +129,39 @@ find_sol_files "$dst_root" "filesWithPath_old"
 cd "$current_dir"
 find_sol_files "$src_root" "filesWithPath_new"
 
+echo "Old files: ${#filesWithPath_old[@]}"
+echo "New files: ${#filesWithPath_new[@]}"
+
 # ========================================================================
 
 # REPORT DELETED ONES
 
 differences=()
+src_root_prefix=$src_root/
+dst_root_prefix=$dst_root/
 
 # Extract basenames of the new files into a regular array
 newFilesBase=()
-for itemB in "${filesWithPath_new[@]}"; do
-  newFilesBase+=("$(basename "$itemB")")
+for itemNew in "${filesWithPath_new[@]}"; do
+  newFilesBase+=("${itemNew#$src_root_prefix}")
 done
 
-# Check old files against the new files' basenames
-for item in "${filesWithPath_old[@]}"; do
-  itemBase=$(basename "$item")
+# Check old files against the new files basenames
+for itemOld in "${filesWithPath_old[@]}"; do
+  itemBase="${itemOld#$dst_root_prefix}"
   skip=
 
   for base in "${newFilesBase[@]}"; do
     if [[ "$itemBase" == "$base" ]]; then
       skip=1
-      echo "Found $itemBase in new version, skipping!"
       break
     fi
   done
 
-  [[ -n $skip ]] || differences+=("$item")
+  [[ -n $skip ]] || differences+=("$itemBase")
 done
+
+echo "Deleted files: ${#differences[@]}"
 
 # If there are differences, write them to .removed file
 if [ ${#differences[@]} -gt 0 ]; then
@@ -163,7 +169,63 @@ if [ ${#differences[@]} -gt 0 ]; then
   printf "%s\n" "${differences[@]}" >"storage_delta/.removed"
 fi
 
-echo "Deleted files: ${#differences[@]}"
+# Remove path in `differences` for `filesWithPath_old` and `filesWithPath_new`
+echo "Removing deleted files from the old and new files"
+
+# Create new arrays to hold valid files
+valid_filesWithPath_old=()
+valid_filesWithPath_new=()
+
+# Remove files in differences from `filesWithPath_old`
+for fileOld in "${filesWithPath_old[@]}"; do
+  basenameOld="${fileOld#$dst_root_prefix}"
+  # Check if the path is not in `differences`
+  if [[ ! " ${differences[@]} " =~ " ${basenameOld} " ]]; then
+    valid_filesWithPath_old+=($fileOld)
+  fi
+done
+
+# Remove files in differences from `filesWithPath_new`
+for fileNew in "${filesWithPath_new[@]}"; do
+  basenameNew="${fileNew#$src_root_prefix}"
+  # Check if the path is not in `differences`
+  if [[ ! " ${differences[@]} " =~ " ${basenameNew} " ]]; then
+    valid_filesWithPath_new+=($fileNew)
+  fi
+done
+
+# Replace old arrays with filtered ones
+filesWithPath_old=("${valid_filesWithPath_old[@]}")
+filesWithPath_new=("${valid_filesWithPath_new[@]}")
+
+# Sort the files by their basenames
+echo "Sorting old and new files"
+filesWithPath_old=($(for file in "${filesWithPath_old[@]}"; do echo "$file"; done | sort))
+filesWithPath_new=($(for file in "${filesWithPath_new[@]}"; do echo "$file"; done | sort))
+
+# Get the paths from file paths for new and old files
+paths_new=()
+paths_old=()
+
+for fileNew in "${filesWithPath_new[@]}"; do
+  paths_new+=("$(dirname "$fileNew")")
+done
+
+for fileOld in "${filesWithPath_old[@]}"; do
+  paths_old+=("$(dirname "$fileOld")")
+done
+
+# Get the paths from file paths for new and old files
+paths_new=()
+paths_old=()
+
+for fileNew in "${filesWithPath_new[@]}"; do
+  paths_new+=("$(dirname "$fileNew")")
+done
+
+for fileOld in "${filesWithPath_old[@]}"; do
+  paths_old+=("$(dirname "$fileOld")")
+done
 
 # ========================================================================
 
@@ -178,23 +240,36 @@ fi
 MAX_CHILD_PROCESSES=$(echo "$NUMBER_OF_CORES * $NUM_SUB_PROCESSES_EACH_CORE" | bc)
 child_processes=0
 
-# Loop through each item in the array
-for line in "${filesWithPath_old[@]}"; do
-  # Check if the line is not empty
-  if [ -n "$line" ] && [[ ! " ${differences[@]} " =~ " ${line} " ]]; then
+# Ensure both arrays have the same length
+len_old=${#filesWithPath_old[@]}
+len_new=${#filesWithPath_new[@]}
+
+if [ $len_old -ne $len_new ]; then
+  # Chose
+  exit 1
+fi
+
+# Loop through pairs of files from both arrays
+for i in "${!filesWithPath_old[@]}"; do
+  fileOld="${filesWithPath_old[$i]}"
+  fileNew="${filesWithPath_new[$i]}"
+
+  # Check if the files are not empty and differences do not include the fileOld
+  if [ -n "$fileOld" ] && [[ ! " ${differences[@]} " =~ " ${fileOld} " ]]; then
     (
       # Run the 'forge inspect' command with the current item from the array
-      formatted_name=$(basename "${line%.*}")
+      formatted_name_old=${fileOld}:$(basename "${fileOld%.*}")
       cd "$old_version"
-      output_old=$(forge inspect $formatted_name storage 2>/dev/null)
+      output_old=$(forge inspect "$formatted_name_old" storage 2>/dev/null)
+      formatted_name_new=${fileNew}:$(basename "${fileNew%.*}")
       cd "$current_dir"
-      output_new=$(forge inspect $formatted_name storage 2>/dev/null)
+      output_new=$(forge inspect "$formatted_name_new" storage 2>/dev/null)
 
       if [ -n "$output_old" ] && [ -n "$output_new" ]; then
-        echo "Comparing storage layout for $line"
-        node ./dependencies/storage-delta-0.3.2/_reporter.js "$output_old" "$output_new" ${line} $OMIT_NEW
+        echo "Comparing storage layout for $formatted_name_old" against $formatted_name_new
+        node ./dependencies/storage-delta-0.3.2/_reporter.js "$output_old" "$output_new" "${fileOld}" "${fileNew}" "${dst_commit}" "${src_commit}" "${github_root}" "$OMIT_NEW"
       else
-        echo "Skipping $line due to missing storage layout, output_old length ${#output_old}, output_new length ${#output_new}"
+        echo "Skipping $formatted_name_old against $formatted_name_new due to missing storage layout, output_old length ${#output_old}, output_new length ${#output_new}"
       fi
     ) &
 
@@ -210,4 +285,5 @@ for line in "${filesWithPath_old[@]}"; do
   fi
 done
 
+# Wait for all remaining child processes to finish
 wait

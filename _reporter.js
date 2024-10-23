@@ -4,10 +4,28 @@ const { execSync } = require("child_process");
 
 // ========== INPUTS ==========
 
-const oldData = JSON.parse(process.argv[2]);
-const newData = JSON.parse(process.argv[3]);
-const contractPath = path.parse(process.argv[4]);
-const omitNew = process.argv[5];
+let oldData, newData;
+try {
+  oldData = JSON.parse(process.argv[2]);
+} catch (error) {
+  console.error("Error parsing JSON input:", error.message);
+  console.log("Input:", process.argv[2]);
+  process.exit(1);
+}
+
+try {
+  newData = JSON.parse(process.argv[3]);
+} catch (error) {
+  console.error("Error parsing JSON input:", error.message);
+  console.log("Input:", process.argv[3]);
+  process.exit(1);
+}
+const pathOld = path.parse(process.argv[4]);
+const pathNew = path.parse(process.argv[5]);
+const dstCommit = process.argv[6];
+const srcCommit = process.argv[7];
+const githubRoot = process.argv[8];
+const omitNew = process.argv[9];
 
 // Omit if same
 if (JSON.stringify(oldData) === JSON.stringify(newData)) process.exit(0);
@@ -15,21 +33,16 @@ if (JSON.stringify(oldData) === JSON.stringify(newData)) process.exit(0);
 // ========== VISUALIZE LAYOUTS ==========
 
 const oldVisualized = createLayout(oldData);
-//console.log(JSON.stringify(oldVisualized, null, 2));
 
 const newVisualized = createLayout(newData);
-//console.log(JSON.stringify(newVisualized, null, 2));
 
 const overlayedVisualized = overlayLayouts(oldVisualized, newVisualized);
-//console.log(JSON.stringify(overlayedVisualized, null, 2));
 
 const [alignedOverlayedVisualized, alignedOldVisualized] = alignLayouts(overlayedVisualized, oldVisualized);
-//console.log(JSON.stringify(alignedOverlayedVisualized, null, 2));
-//console.log(JSON.stringify(alignedOldVisualized, null, 2));
 
 if (alignedOldVisualized.length !== alignedOverlayedVisualized.length) {
   console.warn(
-    "Error: Lengths do not match.\nThis is a bug. Please, submit a new issue: https://github.com/0xPolygon/storage-delta/issues.",
+    "Error: Lengths do not match.\nThis is a bug. Please, submit a new issue: https://github.com/TuDo1403/storage-delta/issues.",
   );
   process.exit(1);
 }
@@ -128,29 +141,74 @@ if (!["🏴", "🏳️", "🏁", "🪦"].some((emoji) => reportNew.includes(emoj
 reportOld = reportOld.slice(0, -1);
 reportNew = reportNew.slice(0, -1);
 
-const directoryPath = path.join("./storage_delta", contractPath.dir);
+const dirOld = path.join("./storage_delta", githubRoot, dstCommit, pathOld.dir);
+const dirNew = path.join("./storage_delta", githubRoot, srcCommit, pathNew.dir);
+const diffDir = path.join("./storage_delta", "diffs", githubRoot, srcCommit);
 
 // Create directories recursively
 try {
-  fs.mkdirSync(directoryPath, { recursive: true });
+  fs.mkdirSync(dirOld, { recursive: true });
+  fs.mkdirSync(dirNew, { recursive: true });
+  fs.mkdirSync(diffDir, { recursive: true });
 } catch (err) {
   if (err.code !== "EEXIST") throw err;
 }
 
 // Write the reports to temporary files
-const reportOldPath = path.join(directoryPath, contractPath.name + "-OLD");
-const reportNewPath = path.join(directoryPath, contractPath.name + "-NEW");
+const reportOldPath = path.join(dirOld, pathOld.name + "-OLD.sol.log");
+const reportNewPath = path.join(dirNew, pathNew.name + "-NEW.sol.log");
+
 fs.writeFileSync(reportOldPath, reportOld);
 fs.writeFileSync(reportNewPath, reportNew);
 
+// Create directories recursively
 try {
-  execSync(
-    `diff -u ${reportOldPath.replaceAll("/", "//")} ${reportNewPath.replaceAll("/", "//")} > ${path
-      .join(directoryPath, contractPath.name + ".diff")
-      .replaceAll("/", "//")}`,
-  );
+  fs.mkdirSync(path.join(diffDir, `${pathNew.dir}`), { recursive: true });
 } catch (err) {
-  console.warn(`diff -u ${reportOldPath} ${reportNewPath} failed with error: ${err.message}`);
+  if (err.code !== "EEXIST") throw err;
+}
+
+const diffFilePath = path.join(diffDir, `${pathNew.dir}/${pathNew.base}.diff`);
+// Debug: Log the constructed file path
+console.log("Full path to diff file:", diffFilePath);
+// Execute the diff command and write the output to the file
+try {
+  // Execute the diff command and write the output to the file
+  execSync(`diff -u ${reportOldPath} ${reportNewPath} > ${diffFilePath}`);
+} catch (error) {
+  // Omit the error message if the diff command returned a non-zero exit code
+}
+
+// Ensure the file was created successfully before trying to read it
+if (fs.existsSync(diffFilePath)) {
+  console.log(`File exists at: ${diffFilePath}`);
+
+  // Read the file content
+  let diffContent;
+  try {
+    diffContent = fs.readFileSync(diffFilePath, "utf8");
+  } catch (readError) {
+    console.error("Error reading diff file:", readError.message);
+    throw readError; // rethrow to handle the error in the outer catch block
+  }
+
+  // Replace all instances using regular expressions
+  const diffFixed = diffContent
+    .replaceAll(/\/\//g, "/") // Replace "//" with "/"
+    .replaceAll("-NEW", "") // Remove "-NEW"
+    .replaceAll("-OLD", "") // Remove "-OLD"
+    .replaceAll(/storage_delta\//g, "") // Remove "storage_delta/"
+    .replaceAll(/https:\//g, "https://") // Fix "https:/" to "https://"
+    .replaceAll(/\.log/g, "") // Remove ".log"
+    .replaceAll(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/g, "")
+    .replaceAll(/\\ No newline at end of file/g, ""); // Remove trailing newline message
+
+  // Write the modified content back to the diff file
+  fs.writeFileSync(diffFilePath, diffFixed);
+
+  console.log(`Diff file successfully created and processed at ${diffFilePath}`);
+} else {
+  console.error("Error creating diff: File not found");
 }
 
 execSync(`rm ${reportOldPath.replaceAll("/", "//")}`);
@@ -328,7 +386,7 @@ function checkStart(newItem, oldItem) {
   }
 
   console.warn(
-    "Error: Cannot check start.\nThis is a bug. Please, submit a new issue: https://github.com/0xPolygon/storage-delta/issues.",
+    "Error: Cannot check start.\nThis is a bug. Please, submit a new issue: https://github.com/TuDo1403/storage-delta/issues.",
   );
   process.exit(1);
 }
