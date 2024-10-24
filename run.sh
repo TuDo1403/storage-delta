@@ -73,10 +73,10 @@ if [ "$exists" -eq 0 ]; then
   git clone "file://$current_dir" "$old_version"
   cd "$old_version"
 
-  dst_root=$(yq eval '.profile.default.src' $old_version/foundry.toml)
-
   # Reset to a certain commit
   git reset --hard $dst_commit
+
+  dst_root=$(yq eval '.profile.default.src' ./foundry.toml)
 
   # Check if soldeer.lock exists
   if [ -f "soldeer.lock" ]; then
