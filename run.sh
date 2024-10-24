@@ -177,7 +177,10 @@ echo "Deleted files: ${#differences[@]}"
 # If there are differences, write them to .removed file
 if [ ${#differences[@]} -gt 0 ]; then
   mkdir -p "storage_delta"
-  printf "%s\n" "${differences[@]}" >"storage_delta/.removed"
+
+  for diff in "${differences[@]}"; do
+    echo "- [$(basename $diff)]($github_root$dst_commit/$dst_root/$diff)" >>"storage_delta/.removed"
+  done
 fi
 
 # Remove path in `differences` for `filesWithPath_old` and `filesWithPath_new`
