@@ -15,7 +15,7 @@ while [[ $# -gt 0 ]]; do
   --omit)
     shift # Remove --omit from processing
     if [[ $1 == "new" ]]; then
-      OMIT_NEW=1nvm
+      OMIT_NEW=1
       shift # Remove the value from processing
     else
       echo "Usage: --omit new"
@@ -121,12 +121,23 @@ filesWithPath_new=()
 
 current_dir=$(pwd)
 
+echo Current Directory: $current_dir
+echo Old Version Directory: $old_version
+echo SRC Root: $src_root
+echo DST Root: $dst_root
+echo SRC Commit: $src_commit
+echo DST Commit: $dst_commit
+
+echo "Finding .sol files in old and new versions"
+
 # Call the function for the old version directory
 cd $old_version
+echo "Old Version Directory: ls -la"
 find_sol_files "$dst_root" "filesWithPath_old"
 
 # Call the function for the new version directory
 cd "$current_dir"
+echo "Current Directory: ls -la"
 find_sol_files "$src_root" "filesWithPath_new"
 
 echo "Old files: ${#filesWithPath_old[@]}"
