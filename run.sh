@@ -73,7 +73,7 @@ if [ "$exists" -eq 0 ]; then
   git clone "file://$current_dir" "$old_version"
   cd "$old_version"
 
-  dst_root=$(yq eval '.profile.default.src' ./foundry.toml)
+  dst_root=$(yq eval '.profile.default.src' $old_version/foundry.toml)
 
   # Reset to a certain commit
   git reset --hard $dst_commit
@@ -132,12 +132,12 @@ echo "Finding .sol files in old and new versions"
 
 # Call the function for the old version directory
 cd $old_version
-echo "Old Version Directory: ls -la"
+echo "Old Version Directory: $(ls -la)"
 find_sol_files "$dst_root" "filesWithPath_old"
 
 # Call the function for the new version directory
 cd "$current_dir"
-echo "Current Directory: ls -la"
+echo "Current Directory: $(ls -la)"
 find_sol_files "$src_root" "filesWithPath_new"
 
 echo "Old files: ${#filesWithPath_old[@]}"
